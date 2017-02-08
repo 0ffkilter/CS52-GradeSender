@@ -1,15 +1,9 @@
-"""
-
-Modified version of /rwoll/mailgun-grade-sender
-
--On a new repository because the core api was changed
-"""
 import requests
 import json
 import csv
 import argparse
 import os
-import httplib2
+import urllib
 import mimetypes
 import smtplib
 import base64
@@ -17,10 +11,8 @@ from apiclient import discovery
 from oauth2client import client
 from oauth2client import tools
 from oauth2client.file import Storage
-from email.MIMEMultipart import MIMEMultipart
-from email.MIMEText import MIMEText
-from urllib2 import HTTPError
-
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 SCOPES = 'https://www.googleapis.com/auth/gmail.send'
 CLIENT_SECRET_FILE = 'client_secret.json'
@@ -34,6 +26,8 @@ def main():
                         help="subject of email to be sent to all students")
     parser.add_argument("file",
                         help="name of file to be sent to all students with ext.")
+    parser.add_argument("--config",
+                        help="path to config file")
     parser.add_argument("--roster",
                         help="path to csv file with roster")
     parser.add_argument("--message",
@@ -45,14 +39,17 @@ def main():
 
     # preliminary settings
     cur_dir = os.getcwd()
-    message_text = 'message.txt'
-    csv_path = 'students.csv'
+    message_text = os.path.join(cur_dir, 'working_directory', 'message.txt')
+    csv_path = os.path.join(cur_dir, 'working_directory', 'students.csv')
+    config_path = os.path.join(cur_dir, 'working_directory', 'config.json')
     file_directory = cur_dir
     desired_file = args.file
     subject = args.subject
     recipients = {}
 
         # check optional arguments
+    if (args.config != None):
+        config_path = args.config
     if (args.roster != None):
         csv_path = args.roster
     if (args.message != None):
@@ -76,6 +73,10 @@ def main():
     recipients = check_batch(recipients, desired_file, file_directory)[0]
 
     # send emails if user confirms
+
+    print("Subject %s: " %(subject))
+    print("File %s: " %(desired_file))
+    print("Message %s " %(message_text))
     if (raw_input('Type confirm to send emails:').lower() == 'confirm'):
         print("confirm")
         send_all(SENDER, recipients, subject, message_text, desired_file, file_directory, service, 'me')
@@ -157,7 +158,7 @@ def send_grade(sender, recipient, subject, message_text, attachment):
 # send emails to all students
 def send_all(sender_info, recipients, subject, message, desired_file, parent_directory, service, user_id):
     print ("Sending...")
-    for user, email, section in recipients.iteritems():
+    for user, email in recipients.iteritems():
             msg = send_grade(sender_info, email, subject, message, make_path(desired_file, user, parent_directory))
             try:
                 result = (service.users().messages().send(userId=user_id, body=msg).execute())
